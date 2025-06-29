@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Piton - Conductor System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .device-type {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px 20px;
+            border-radius: 25px;
+            display: inline-block;
+            backdrop-filter: blur(10px);
+        }
+
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        /* Mobile Conductor Interface */
+        .mobile-interface {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+        }
+
+        .conducting-area {
+            width: 300px;
+            height: 300px;
+            border: 3px dashed rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 20px 0;
+            position: relative;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+        }
+
+        .baton-indicator {
+            width: 20px;
+            height: 20px;
+            background: #ff6b6b;
+            border-radius: 50%;
+            position: absolute;
+            transition: all 0.1s ease;
+            box-shadow: 0 0 20px rgba(255, 107, 107, 0.8);
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        button {
+            padding: 15px 30px;
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            border-radius: 25px;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .motion-data {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+            font-size: 14px;
+        }
+
+        .data-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        /* Desktop Visualization Interface */
+        .desktop-interface {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .visualization-area {
+            flex: 1;
+            position: relative;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 20px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+
+        .conductor-stage {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .baton-trail {
+            position: absolute;
+            pointer-events: none;
+        }
+
+        .baton-trail svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .virtual-baton {
+            position: absolute;
+            width: 60px;
+            height: 4px;
+            background: linear-gradient(90deg, #8B4513, #DEB887);
+            border-radius: 2px;
+            transform-origin: 5px center;
+            transition: all 0.05s ease;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.6);
+        }
+
+        .virtual-baton::before {
+            content: '';
+            position: absolute;
+            left: -5px;
+            top: -3px;
+            width: 10px;
+            height: 10px;
+            background: #FFD700;
+            border-radius: 50%;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+        }
+
+        .tempo-display {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            min-width: 150px;
+        }
+
+        .tempo-bpm {
+            font-size: 48px;
+            font-weight: bold;
+            color: #ff6b6b;
+            margin-bottom: 10px;
+        }
+
+        .beat-indicator {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 10px 0;
+        }
+
+        .beat-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transition: all 0.2s ease;
+        }
+
+        .beat-dot.active {
+            background: #ff6b6b;
+            transform: scale(1.5);
+            box-shadow: 0 0 10px rgba(255, 107, 107, 0.8);
+        }
+
+        .conducting-metrics {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            min-width: 300px;
+        }
+
+        .metric {
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+
+        .metric-label {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: 5px;
+        }
+
+        .connection-info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        .connected-devices {
+            margin-top: 10px;
+        }
+
+        .device-item {
+            padding: 5px 10px;
+            background: rgba(76, 175, 80, 0.3);
+            border-radius: 15px;
+            margin: 5px 0;
+            font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .conducting-area {
+                width: 250px;
+                height: 250px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="device-type" id="deviceType">Detecting Device...</div>
+            <div class="status" id="connectionStatus">Connecting...</div>
+        </div>
+
+        <!-- Mobile Conductor Interface -->
+        <div class="mobile-interface" id="mobileInterface">
+            <h2>Digital Piton Controller</h2>
+            <p>Hold your phone like a conductor's baton</p>
+            
+            <div class="conducting-area">
+                <div class="baton-indicator" id="batonIndicator"></div>
+            </div>
+
+            <div class="controls">
+                <button id="startConducting">Start Conducting</button>
+                <button id="calibrate">Calibrate</button>
+            </div>
+
+            <div class="motion-data" id="motionData">
+                <div class="data-item">
+                    <strong>Tempo</strong><br>
+                    <span id="mobileTempo">120 BPM</span>
+                </div>
+                <div class="data-item">
+                    <strong>Beat</strong><br>
+                    <span id="mobileBeat">1/4</span>
+                </div>
+                <div class="data-item">
+                    <strong>X-Axis</strong><br>
+                    <span id="mobileX">0°</span>
+                </div>
+                <div class="data-item">
+                    <strong>Y-Axis</strong><br>
+                    <span id="mobileY">0°</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Desktop Visualization Interface -->
+        <div class="desktop-interface" id="desktopInterface">
+            <div class="visualization-area">
+                <div class="conductor-stage" id="conductorStage">
+                    <svg class="baton-trail" id="batonTrail" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="trailGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" style="stop-color:rgba(255,107,107,0);stop-opacity:0" />
+                                <stop offset="50%" style="stop-color:rgba(255,107,107,0.5);stop-opacity:0.5" />
+                                <stop offset="100%" style="stop-color:rgba(255,107,107,1);stop-opacity:1" />
+                            </linearGradient>
+                        </defs>
+                        <path id="trailPath" stroke="url(#trailGradient)" stroke-width="3" fill="none"/>
+                    </svg>
+                    <div class="virtual-baton" id="virtualBaton"></div>
+                </div>
+
+                <div class="tempo-display">
+                    <div class="tempo-bpm" id="tempoBPM">120</div>
+                    <div>BPM</div>
+                    <div class="beat-indicator" id="beatIndicator">
+                        <div class="beat-dot"></div>
+                        <div class="beat-dot"></div>
+                        <div class="beat-dot"></div>
+                        <div class="beat-dot"></div>
+                    </div>
+                    <div id="timeSignature">4/4</div>
+                </div>
+
+                <div class="conducting-metrics">
+                    <div class="metric">
+                        <div class="metric-value" id="intensityValue">0</div>
+                        <div class="metric-label">Intensity</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="precisionValue">0%</div>
+                        <div class="metric-label">Precision</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="expressionValue">0</div>
+                        <div class="metric-label">Expression</div>
+                    </div>
+                </div>
+
+                <div class="connection-info">
+                    <strong>Connected Devices</strong>
+                    <div class="connected-devices" id="connectedDevices">
+                        <div class="device-item">Waiting for conductor...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class DigitalPitonSystem {
+            constructor() {
+                this.room = new WebsimSocket();
+                this.isDesktop = !this.isMobileDevice();
+                this.isTracking = false;
+                this.lastMotionData = null;
+                this.trailPoints = [];
+                this.maxTrailPoints = 20;
+                this.currentBeat = 0;
+                this.tempo = 120;
+                this.beatInterval = null;
+                this.calibration = { x: 0, y: 0, z: 0 };
+                
+                this.init();
+            }
+
+            isMobileDevice() {
+                return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                       (navigator.maxTouchPoints && navigator.maxTouchPoints > 2);
+            }
+
+            async init() {
+                try {
+                    await this.room.initialize();
+                    this.setupInterface();
+                    this.setupEventListeners();
+                    this.setupRoomListeners();
+                    this.updateConnectionStatus('Connected');
+                    
+                    if (!this.isDesktop) {
+                        await this.setupMotionSensors();
+                    } else {
+                        this.startVisualization();
+                    }
+                } catch (error) {
+                    console.error('Failed to initialize:', error);
+                    this.updateConnectionStatus('Connection failed');
+                }
+            }
+
+            setupInterface() {
+                const deviceType = document.getElementById('deviceType');
+                const mobileInterface = document.getElementById('mobileInterface');
+                const desktopInterface = document.getElementById('desktopInterface');
+
+                if (this.isDesktop) {
+                    deviceType.textContent = '🖥️ Desktop - Conductor View';
+                    desktopInterface.style.display = 'flex';
+                    mobileInterface.style.display = 'none';
+                } else {
+                    deviceType.textContent = '📱 Mobile - Piton Controller';
+                    mobileInterface.style.display = 'flex';
+                    desktopInterface.style.display = 'none';
+                }
+            }
+
+            setupEventListeners() {
+                if (!this.isDesktop) {
+                    const startBtn = document.getElementById('startConducting');
+                    const calibrateBtn = document.getElementById('calibrate');
+
+                    startBtn.addEventListener('click', () => this.toggleConducting());
+                    calibrateBtn.addEventListener('click', () => this.calibrateDevice());
+                }
+            }
+
+            setupRoomListeners() {
+                this.room.subscribePresence((presence) => {
+                    this.updateConnectedDevices();
+                });
+
+                this.room.onmessage = (event) => {
+                    const data = event.data;
+                    switch (data.type) {
+                        case 'motion_data':
+                            if (this.isDesktop) {
+                                this.handleMotionData(data);
+                            }
+                            break;
+                        case 'conducting_event':
+                            this.handleConductingEvent(data);
+                            break;
+                    }
+                };
+            }
+
+            async setupMotionSensors() {
+                if (!window.DeviceMotionEvent || !window.DeviceOrientationEvent) {
+                    alert('Motion sensors not supported on this device');
+                    return;
+                }
+
+                // Request permission for iOS 13+
+                if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                    try {
+                        const permission = await DeviceMotionEvent.requestPermission();
+                        if (permission !== 'granted') {
+                            alert('Permission denied for motion sensors');
+                            return;
+                        }
+                    } catch (error) {
+                        console.error('Error requesting permission:', error);
+                    }
+                }
+
+                window.addEventListener('deviceorientation', (event) => {
+                    if (this.isTracking) {
+                        this.handleDeviceOrientation(event);
+                    }
+                });
+
+                window.addEventListener('devicemotion', (event) => {
+                    if (this.isTracking) {
+                        this.handleDeviceMotion(event);
+                    }
+                });
+            }
+
+            handleDeviceOrientation(event) {
+                const alpha = event.alpha || 0; // Z axis
+                const beta = event.beta || 0;   // X axis
+                const gamma = event.gamma || 0; // Y axis
+
+                // Apply calibration
+                const calibratedBeta = beta - this.calibration.x;
+                const calibratedGamma = gamma - this.calibration.y;
+
+                this.updateBatonPosition(calibratedGamma, calibratedBeta);
+                this.updateMobileDisplay(calibratedGamma, calibratedBeta);
+
+                const motionData = {
+                    type: 'motion_data',
+                    timestamp: Date.now(),
+                    orientation: {
+                        alpha: alpha,
+                        beta: calibratedBeta,
+                        gamma: calibratedGamma
+                    },
+                    tempo: this.tempo,
+                    beat: this.currentBeat,
+                    clientId: this.room.clientId
+                };
+
+                this.room.send(motionData);
+            }
+
+            handleDeviceMotion(event) {
+                const acc = event.acceleration || { x: 0, y: 0, z: 0 };
+                const intensity = Math.sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z);
+                
+                // Update tempo based on acceleration patterns
+                this.updateTempoFromMotion(intensity);
+            }
+
+            updateBatonPosition(x, y) {
+                const indicator = document.getElementById('batonIndicator');
+                if (!indicator) return;
+
+                // Map orientation to position within the conducting area
+                const maxOffset = 120; // pixels from center
+                const posX = Math.max(-maxOffset, Math.min(maxOffset, x * 3));
+                const posY = Math.max(-maxOffset, Math.min(maxOffset, y * 3));
+
+                indicator.style.transform = `translate(${posX}px, ${posY}px)`;
+            }
+
+            updateMobileDisplay(x, y) {
+                document.getElementById('mobileX').textContent = `${x.toFixed(1)}°`;
+                document.getElementById('mobileY').textContent = `${y.toFixed(1)}°`;
+                document.getElementById('mobileTempo').textContent = `${this.tempo} BPM`;
+                document.getElementById('mobileBeat').textContent = `${this.currentBeat + 1}/4`;
+            }
+
+            handleMotionData(data) {
+                if (!data.orientation) return;
+
+                const { gamma, beta } = data.orientation;
+                this.updateVirtualBaton(gamma, beta);
+                this.updateBatonTrail(gamma, beta);
+                this.updateMetrics(data);
+                
+                // Update tempo display
+                document.getElementById('tempoBPM').textContent = data.tempo || 120;
+            }
+
+            updateVirtualBaton(x, y) {
+                const baton = document.getElementById('virtualBaton');
+                if (!baton) return;
+
+                const stage = document.getElementById('conductorStage');
+                const rect = stage.getBoundingClientRect();
+                
+                // Map orientation to stage coordinates
+                const centerX = rect.width / 2;
+                const centerY = rect.height / 2;
+                const posX = centerX + (x * 8); // Scale factor
+                const posY = centerY + (y * 8);
+                
+                // Calculate rotation angle
+                const angle = Math.atan2(y, x) * (180 / Math.PI);
+
+                baton.style.left = `${posX}px`;
+                baton.style.top = `${posY}px`;
+                baton.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
+            }
+
+            updateBatonTrail(x, y) {
+                const stage = document.getElementById('conductorStage');
+                const rect = stage.getBoundingClientRect();
+                
+                const centerX = rect.width / 2;
+                const centerY = rect.height / 2;
+                const posX = centerX + (x * 8);
+                const posY = centerY + (y * 8);
+
+                this.trailPoints.push({ x: posX, y: posY, timestamp: Date.now() });
+                
+                // Remove old points
+                const now = Date.now();
+                this.trailPoints = this.trailPoints.filter(point => now - point.timestamp < 1000);
+                
+                this.drawTrail();
+            }
+
+            drawTrail() {
+                const path = document.getElementById('trailPath');
+                if (!path || this.trailPoints.length < 2) return;
+
+                let pathData = `M ${this.trailPoints[0].x} ${this.trailPoints[0].y}`;
+                for (let i = 1; i < this.trailPoints.length; i++) {
+                    pathData += ` L ${this.trailPoints[i].x} ${this.trailPoints[i].y}`;
+                }
+                
+                path.setAttribute('d', pathData);
+            }
+
+            updateMetrics(data) {
+                // Calculate conducting metrics
+                const intensity = Math.abs(data.orientation.gamma) + Math.abs(data.orientation.beta);
+                const precision = Math.max(0, 100 - (Math.abs(data.orientation.gamma) + Math.abs(data.orientation.beta)));
+                const expression = Math.min(100, intensity * 2);
+
+                document.getElementById('intensityValue').textContent = Math.round(intensity);
+                document.getElementById('precisionValue').textContent = `${Math.round(precision)}%`;
+                document.getElementById('expressionValue').textContent = Math.round(expression);
+            }
+
+            updateTempoFromMotion(intensity) {
+                // Simple tempo detection based on motion intensity
+                if (intensity > 15) {
+                    this.tempo = Math.min(200, this.tempo + 1);
+                } else if (intensity < 5) {
+                    this.tempo = Math.max(60, this.tempo - 1);
+                }
+            }
+
+            startVisualization() {
+                // Start beat indicator animation
+                this.beatInterval = setInterval(() => {
+                    this.updateBeatIndicator();
+                }, (60 / this.tempo) * 1000);
+            }
+
+            updateBeatIndicator() {
+                const dots = document.querySelectorAll('.beat-dot');
+                dots.forEach((dot, index) => {
+                    dot.classList.toggle('active', index === this.currentBeat);
+                });
+                
+                this.currentBeat = (this.currentBeat + 1) % 4;
+            }
+
+            toggleConducting() {
+                const btn = document.getElementById('startConducting');
+                this.isTracking = !this.isTracking;
+                
+                if (this.isTracking) {
+                    btn.textContent = 'Stop Conducting';
+                    btn.style.background = 'rgba(255, 107, 107, 0.7)';
+                    this.room.updatePresence({ conducting: true });
+                } else {
+                    btn.textContent = 'Start Conducting';
+                    btn.style.background = 'rgba(255, 255, 255, 0.2)';
+                    this.room.updatePresence({ conducting: false });
+                }
+            }
+
+            calibrateDevice() {
+                if (this.lastMotionData) {
+                    this.calibration = {
+                        x: this.lastMotionData.beta || 0,
+                        y: this.lastMotionData.gamma || 0,
+                        z: this.lastMotionData.alpha || 0
+                    };
+                }
+                
+                alert('Device calibrated! Hold your phone in the neutral conducting position.');
+            }
+
+            updateConnectionStatus(status) {
+                document.getElementById('connectionStatus').textContent = status;
+            }
+
+            updateConnectedDevices() {
+                const container = document.getElementById('connectedDevices');
+                if (!container) return;
+
+                container.innerHTML = '';
+                
+                Object.values(this.room.peers).forEach(peer => {
+                    const deviceItem = document.createElement('div');
+                    deviceItem.className = 'device-item';
+                    deviceItem.textContent = `${peer.username} - ${peer.id.substring(0, 8)}`;
+                    container.appendChild(deviceItem);
+                });
+            }
+
+            handleConductingEvent(data) {
+                // Handle specific conducting events like downbeats, crescendos, etc.
+                console.log('Conducting event:', data);
+            }
+        }
+
+        // Initialize the system when the page loads
+        window.addEventListener('load', () => {
+            new DigitalPitonSystem();
+        });
+    </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4c6229722a6346bc8eb5cb0e5eae5d41","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>
+
