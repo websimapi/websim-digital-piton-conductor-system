@@ -49,7 +49,7 @@
 
         /* Mobile Conductor Interface */
         .mobile-interface {
-            display: none;
+            display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
@@ -124,7 +124,7 @@
 
         /* Desktop Visualization Interface */
         .desktop-interface {
-            display: none;
+            display: flex;
             flex-direction: column;
             height: 100%;
         }
@@ -269,7 +269,16 @@
             font-size: 14px;
         }
 
+        /* Force mobile interface on small screens */
         @media (max-width: 768px) {
+            .mobile-interface {
+                display: flex !important;
+            }
+            
+            .desktop-interface {
+                display: none !important;
+            }
+            
             .container {
                 padding: 10px;
             }
@@ -277,6 +286,28 @@
             .conducting-area {
                 width: 250px;
                 height: 250px;
+            }
+        }
+
+        /* Force desktop interface on large screens */
+        @media (min-width: 769px) {
+            .mobile-interface {
+                display: none !important;
+            }
+            
+            .desktop-interface {
+                display: flex !important;
+            }
+        }
+
+        /* Override for touch devices regardless of screen size */
+        @media (pointer: coarse) {
+            .mobile-interface {
+                display: flex !important;
+            }
+            
+            .desktop-interface {
+                display: none !important;
             }
         }
     </style>
@@ -380,7 +411,7 @@
         class DigitalPitonSystem {
             constructor() {
                 this.room = new WebsimSocket();
-                this.isDesktop = !this.isMobileDevice();
+                this.isDesktop = this.detectDeviceType();
                 this.isTracking = false;
                 this.lastMotionData = null;
                 this.trailPoints = [];
@@ -394,9 +425,26 @@
                 this.init();
             }
 
-            isMobileDevice() {
-                return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-                       (navigator.maxTouchPoints && navigator.maxTouchPoints > 2);
+            detectDeviceType() {
+                // Multiple detection methods for better accuracy
+                const userAgent = navigator.userAgent.toLowerCase();
+                const isMobileUA = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
+                const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+                const hasSmallScreen = window.innerWidth <= 768;
+                const hasCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
+                
+                // If any mobile indicators are true, treat as mobile
+                const isMobile = isMobileUA || (isTouchDevice && hasSmallScreen) || hasCoarsePointer;
+                
+                console.log('Device detection:', {
+                    userAgent: isMobileUA,
+                    touch: isTouchDevice,
+                    smallScreen: hasSmallScreen,
+                    coarsePointer: hasCoarsePointer,
+                    finalDecision: isMobile ? 'mobile' : 'desktop'
+                });
+                
+                return !isMobile; // Return true for desktop, false for mobile
             }
 
             async init() {
@@ -423,15 +471,26 @@
                 const mobileInterface = document.getElementById('mobileInterface');
                 const desktopInterface = document.getElementById('desktopInterface');
 
+                // Force interface display based on device type
                 if (this.isDesktop) {
                     deviceType.textContent = '🖥️ Desktop - Conductor View';
                     desktopInterface.style.display = 'flex';
                     mobileInterface.style.display = 'none';
+                    
+                    // Add CSS class for additional styling
+                    document.body.classList.add('desktop-mode');
+                    document.body.classList.remove('mobile-mode');
                 } else {
                     deviceType.textContent = '📱 Mobile - Piton Controller';
                     mobileInterface.style.display = 'flex';
                     desktopInterface.style.display = 'none';
+                    
+                    // Add CSS class for additional styling
+                    document.body.classList.add('mobile-mode');
+                    document.body.classList.remove('desktop-mode');
                 }
+                
+                console.log('Interface setup:', this.isDesktop ? 'Desktop' : 'Mobile');
             }
 
             setupEventListeners() {
@@ -465,45 +524,55 @@
             }
 
             async setupMotionSensors() {
+                console.log('Setting up motion sensors...');
+                
                 if (!window.DeviceMotionEvent || !window.DeviceOrientationEvent) {
+                    console.error('Motion sensors not supported');
                     this.updateConnectionStatus('Motion sensors not supported');
                     return false;
                 }
 
-                // Request permission for iOS 13+
-                if (typeof DeviceMotionEvent.requestPermission === 'function') {
-                    try {
+                try {
+                    // Request permission for iOS 13+
+                    if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                        console.log('Requesting motion permissions...');
+                        
                         const motionPermission = await DeviceMotionEvent.requestPermission();
                         const orientationPermission = await DeviceOrientationEvent.requestPermission();
+                        
+                        console.log('Motion permission:', motionPermission);
+                        console.log('Orientation permission:', orientationPermission);
                         
                         if (motionPermission !== 'granted' || orientationPermission !== 'granted') {
                             this.updateConnectionStatus('Motion permission denied');
                             alert('Please allow motion sensor access for the conductor to work');
                             return false;
                         }
-                    } catch (error) {
-                        console.error('Error requesting permission:', error);
-                        this.updateConnectionStatus('Permission error');
-                        return false;
                     }
+
+                    this.motionPermissionGranted = true;
+                    this.updateConnectionStatus('Motion sensors ready');
+                    console.log('Motion sensors initialized successfully');
+
+                    // Add event listeners
+                    window.addEventListener('deviceorientation', (event) => {
+                        if (this.isTracking && this.motionPermissionGranted) {
+                            this.handleDeviceOrientation(event);
+                        }
+                    });
+
+                    window.addEventListener('devicemotion', (event) => {
+                        if (this.isTracking && this.motionPermissionGranted) {
+                            this.handleDeviceMotion(event);
+                        }
+                    });
+
+                    return true;
+                } catch (error) {
+                    console.error('Error setting up motion sensors:', error);
+                    this.updateConnectionStatus('Motion sensor error');
+                    return false;
                 }
-
-                this.motionPermissionGranted = true;
-                this.updateConnectionStatus('Motion sensors ready');
-
-                window.addEventListener('deviceorientation', (event) => {
-                    if (this.isTracking && this.motionPermissionGranted) {
-                        this.handleDeviceOrientation(event);
-                    }
-                });
-
-                window.addEventListener('devicemotion', (event) => {
-                    if (this.isTracking && this.motionPermissionGranted) {
-                        this.handleDeviceMotion(event);
-                    }
-                });
-
-                return true;
             }
 
             handleDeviceOrientation(event) {
@@ -666,11 +735,22 @@
             toggleConducting() {
                 const btn = document.getElementById('startConducting');
                 
-                if (!this.motionPermissionGranted && !this.isDesktop) {
-                    alert('Please allow motion sensor permissions first');
+                if (!this.isDesktop && !this.motionPermissionGranted) {
+                    console.log('Requesting motion permissions before conducting...');
+                    this.setupMotionSensors().then(success => {
+                        if (success) {
+                            this.startConducting();
+                        }
+                    });
                     return;
                 }
 
+                this.startConducting();
+            }
+            
+            startConducting() {
+                const btn = document.getElementById('startConducting');
+                
                 this.isTracking = !this.isTracking;
                 
                 if (this.isTracking) {
@@ -678,18 +758,20 @@
                     btn.style.background = 'rgba(255, 107, 107, 0.7)';
                     this.room.updatePresence({ 
                         conducting: true,
-                        deviceType: 'mobile',
+                        deviceType: this.isDesktop ? 'desktop' : 'mobile',
                         username: this.room.peers[this.room.clientId]?.username || 'Conductor'
                     });
                     this.updateConnectionStatus('Conducting active');
+                    console.log('Conducting started');
                 } else {
                     btn.textContent = 'Start Conducting';
                     btn.style.background = 'rgba(255, 255, 255, 0.2)';
                     this.room.updatePresence({ 
                         conducting: false,
-                        deviceType: 'mobile'
+                        deviceType: this.isDesktop ? 'desktop' : 'mobile'
                     });
                     this.updateConnectionStatus('Conducting stopped');
+                    console.log('Conducting stopped');
                 }
             }
 
