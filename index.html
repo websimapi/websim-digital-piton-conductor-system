@@ -389,6 +389,7 @@
                 this.tempo = 120;
                 this.beatInterval = null;
                 this.calibration = { x: 0, y: 0, z: 0 };
+                this.motionPermissionGranted = false;
                 
                 this.init();
             }
@@ -465,40 +466,53 @@
 
             async setupMotionSensors() {
                 if (!window.DeviceMotionEvent || !window.DeviceOrientationEvent) {
-                    alert('Motion sensors not supported on this device');
-                    return;
+                    this.updateConnectionStatus('Motion sensors not supported');
+                    return false;
                 }
 
                 // Request permission for iOS 13+
                 if (typeof DeviceMotionEvent.requestPermission === 'function') {
                     try {
-                        const permission = await DeviceMotionEvent.requestPermission();
-                        if (permission !== 'granted') {
-                            alert('Permission denied for motion sensors');
-                            return;
+                        const motionPermission = await DeviceMotionEvent.requestPermission();
+                        const orientationPermission = await DeviceOrientationEvent.requestPermission();
+                        
+                        if (motionPermission !== 'granted' || orientationPermission !== 'granted') {
+                            this.updateConnectionStatus('Motion permission denied');
+                            alert('Please allow motion sensor access for the conductor to work');
+                            return false;
                         }
                     } catch (error) {
                         console.error('Error requesting permission:', error);
+                        this.updateConnectionStatus('Permission error');
+                        return false;
                     }
                 }
 
+                this.motionPermissionGranted = true;
+                this.updateConnectionStatus('Motion sensors ready');
+
                 window.addEventListener('deviceorientation', (event) => {
-                    if (this.isTracking) {
+                    if (this.isTracking && this.motionPermissionGranted) {
                         this.handleDeviceOrientation(event);
                     }
                 });
 
                 window.addEventListener('devicemotion', (event) => {
-                    if (this.isTracking) {
+                    if (this.isTracking && this.motionPermissionGranted) {
                         this.handleDeviceMotion(event);
                     }
                 });
+
+                return true;
             }
 
             handleDeviceOrientation(event) {
                 const alpha = event.alpha || 0; // Z axis
                 const beta = event.beta || 0;   // X axis
                 const gamma = event.gamma || 0; // Y axis
+
+                // Store last motion data for calibration
+                this.lastMotionData = { alpha, beta, gamma };
 
                 // Apply calibration
                 const calibratedBeta = beta - this.calibration.x;
@@ -651,16 +665,31 @@
 
             toggleConducting() {
                 const btn = document.getElementById('startConducting');
+                
+                if (!this.motionPermissionGranted && !this.isDesktop) {
+                    alert('Please allow motion sensor permissions first');
+                    return;
+                }
+
                 this.isTracking = !this.isTracking;
                 
                 if (this.isTracking) {
                     btn.textContent = 'Stop Conducting';
                     btn.style.background = 'rgba(255, 107, 107, 0.7)';
-                    this.room.updatePresence({ conducting: true });
+                    this.room.updatePresence({ 
+                        conducting: true,
+                        deviceType: 'mobile',
+                        username: this.room.peers[this.room.clientId]?.username || 'Conductor'
+                    });
+                    this.updateConnectionStatus('Conducting active');
                 } else {
                     btn.textContent = 'Start Conducting';
                     btn.style.background = 'rgba(255, 255, 255, 0.2)';
-                    this.room.updatePresence({ conducting: false });
+                    this.room.updatePresence({ 
+                        conducting: false,
+                        deviceType: 'mobile'
+                    });
+                    this.updateConnectionStatus('Conducting stopped');
                 }
             }
 
@@ -671,9 +700,22 @@
                         y: this.lastMotionData.gamma || 0,
                         z: this.lastMotionData.alpha || 0
                     };
+                    
+                    this.updateConnectionStatus('Device calibrated');
+                    
+                    // Visual feedback
+                    const calibrateBtn = document.getElementById('calibrate');
+                    const originalText = calibrateBtn.textContent;
+                    calibrateBtn.textContent = 'Calibrated ✓';
+                    calibrateBtn.style.background = 'rgba(76, 175, 80, 0.7)';
+                    
+                    setTimeout(() => {
+                        calibrateBtn.textContent = originalText;
+                        calibrateBtn.style.background = 'rgba(255, 255, 255, 0.2)';
+                    }, 2000);
+                } else {
+                    alert('Please move your device first, then calibrate');
                 }
-                
-                alert('Device calibrated! Hold your phone in the neutral conducting position.');
             }
 
             updateConnectionStatus(status) {
@@ -686,10 +728,24 @@
 
                 container.innerHTML = '';
                 
-                Object.values(this.room.peers).forEach(peer => {
+                const peers = Object.values(this.room.peers);
+                if (peers.length === 0) {
                     const deviceItem = document.createElement('div');
                     deviceItem.className = 'device-item';
-                    deviceItem.textContent = `${peer.username} - ${peer.id.substring(0, 8)}`;
+                    deviceItem.textContent = 'No devices connected';
+                    container.appendChild(deviceItem);
+                    return;
+                }
+
+                peers.forEach(peer => {
+                    const presence = this.room.presence[peer.id];
+                    const deviceItem = document.createElement('div');
+                    deviceItem.className = 'device-item';
+                    
+                    const deviceType = presence?.deviceType || 'unknown';
+                    const conducting = presence?.conducting ? ' (Conducting)' : '';
+                    
+                    deviceItem.textContent = `${peer.username} - ${deviceType}${conducting}`;
                     container.appendChild(deviceItem);
                 });
             }
@@ -708,4 +764,3 @@
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4c6229722a6346bc8eb5cb0e5eae5d41","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>
 </html>
-
